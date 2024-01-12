@@ -1,0 +1,64 @@
+name: Build e Deploy EC2
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dotnet-version: [ '6.0.x' ]
+    env:
+      ASPNETCORE_ENVIRONMENT: Production
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup .NET Core SDK ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+      - name: Install dependencies
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+      - name: Test
+        run: dotnet test --no-restore --verbosity normal
+ 
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    
+    steps:
+    - uses: actions/checkout@v3
+    - name: Reset Terminal
+      run: cd
+    
+    - uses: actions/checkout@v3
+    - name: Go to Repository
+      run: cd /home/ubuntu/CefetPark_Backend
+
+    - uses: actions/checkout@v3
+    - name: Pull in Repository
+      run: git pull origin main
+      
+    - uses: actions/checkout@v3
+    - name: Docker compose down
+      continue-on-error: true
+      run: sudo docker stop backend
+      
+    - uses: actions/checkout@v3
+    - name: Docker system prune
+      continue-on-error: true
+      run: sudo docker rm backend
+
+    - uses: actions/checkout@v3
+    - name: Docker Build
+      run: sudo docker build -t backend:latest .
+
+    - uses: actions/checkout@v3
+    - name: Docker Run
+      run: sudo docker run -d -p 5001:80 --name backend backend:latest
+
